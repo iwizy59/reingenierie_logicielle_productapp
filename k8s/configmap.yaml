@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: productapp-config
+  namespace: productapp
+  labels:
+    app: productapp
+data:
+  # Configuration de l'application
+  application.properties: |
+    app.name=Product Management App
+    app.version=1.0.0
+    app.environment=production
+  
+  # Configuration JVM
+  java.opts: "-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+  
+  # Port de l'application
+  port: "8080"

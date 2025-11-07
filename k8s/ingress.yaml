@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: productapp-ingress
+  namespace: productapp
+  labels:
+    app: productapp
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: productapp.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: productapp-service
+            port:
+              number: 80
+  # Pour activer HTTPS, décommenter et configurer
+  # tls:
+  # - hosts:
+  #   - productapp.local
+  #   secretName: productapp-tls

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: productapp-service
+  namespace: productapp
+  labels:
+    app: productapp
+spec:
+  type: LoadBalancer
+  selector:
+    app: productapp
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+  sessionAffinity: None
