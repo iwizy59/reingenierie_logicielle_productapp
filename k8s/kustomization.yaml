@@ -5,6 +5,11 @@ namespace: productapp
 
 resources:
   - namespace.yaml
+  - postgres-configmap.yaml
+  - postgres-secret.yaml
+  - postgres-pvc.yaml
+  - postgres-statefulset.yaml
+  - postgres-service.yaml
   - configmap.yaml
   - deployment.yaml
   - service.yaml
@@ -13,7 +18,6 @@ resources:
   - networkpolicy.yaml
 
 commonLabels:
-  app: productapp
   managed-by: kustomize
 
 images:

@@ -12,17 +12,25 @@
         <class>com.reingenierie.model.Product</class>
         
         <properties>
-            <!-- Configuration JDBC définie uniquement via code Java (HibernateUtil) -->
-            <!-- NE PAS définir jdbc.driver, jdbc.url, jdbc.user, jdbc.password ici -->
-            <!-- pour permettre la surcharge par variables d'environnement -->
+            <!-- PostgreSQL Database Configuration -->
+            <property name="jakarta.persistence.jdbc.driver" value="org.postgresql.Driver"/>
+            <property name="jakarta.persistence.jdbc.url" value="jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:productdb}"/>
+            <property name="jakarta.persistence.jdbc.user" value="${DB_USER:postgres}"/>
+            <property name="jakarta.persistence.jdbc.password" value="${DB_PASSWORD:postgres}"/>
             
             <!-- Hibernate Configuration -->
+            <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQLDialect"/>
             <property name="hibernate.hbm2ddl.auto" value="update"/>
             <property name="hibernate.show_sql" value="true"/>
             <property name="hibernate.format_sql" value="true"/>
             
             <!-- Connection Pool -->
             <property name="hibernate.connection.pool_size" value="10"/>
+            
+            <!-- Performance -->
+            <property name="hibernate.jdbc.batch_size" value="20"/>
+            <property name="hibernate.order_inserts" value="true"/>
+            <property name="hibernate.order_updates" value="true"/>
         </properties>
     </persistence-unit>
 </persistence>

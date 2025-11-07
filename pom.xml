@@ -31,11 +31,19 @@
             <version>${hibernate.version}</version>
         </dependency>
 
-        <!-- H2 Database -->
+        <!-- PostgreSQL Database -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.1</version>
+        </dependency>
+        
+        <!-- H2 Database (keep for local dev) -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <version>${h2.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- Javalin - Lightweight web framework -->

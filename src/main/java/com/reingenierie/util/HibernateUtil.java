@@ -3,18 +3,70 @@ package com.reingenierie.util;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
+import java.util.HashMap;
+import java.util.Map;
 
 public class HibernateUtil {
     
     private static final EntityManagerFactory entityManagerFactory;
     
     static {
-        try {
-            entityManagerFactory = Persistence.createEntityManagerFactory("webapp-demo-pu");
-        } catch (Throwable ex) {
-            System.err.println("Échec de la création de l'EntityManagerFactory: " + ex);
-            throw new ExceptionInInitializerError(ex);
+        EntityManagerFactory tempFactory = null;
+        int maxRetries = 10;
+        int retryDelay = 5000; // 5 secondes
+        
+        // Récupérer les variables d'environnement pour la configuration de la DB
+        Map<String, String> props = new HashMap<>();
+        
+        String dbHost = System.getenv().getOrDefault("DB_HOST", "localhost");
+        String dbPort = System.getenv().getOrDefault("DB_PORT", "5432");
+        String dbName = System.getenv().getOrDefault("DB_NAME", "productdb");
+        String dbUser = System.getenv().getOrDefault("DB_USER", "postgres");
+        String dbPassword = System.getenv().getOrDefault("DB_PASSWORD", "postgres");
+        
+        String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s", dbHost, dbPort, dbName);
+        
+        // Forcer PostgreSQL
+        props.put("jakarta.persistence.jdbc.driver", "org.postgresql.Driver");
+        props.put("jakarta.persistence.jdbc.url", jdbcUrl);
+        props.put("jakarta.persistence.jdbc.user", dbUser);
+        props.put("jakarta.persistence.jdbc.password", dbPassword);
+        props.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+        
+        System.out.println("========================================");
+        System.out.println("Configuration Base de Données:");
+        System.out.println("  Host: " + dbHost);
+        System.out.println("  Port: " + dbPort);
+        System.out.println("  Database: " + dbName);
+        System.out.println("  User: " + dbUser);
+        System.out.println("  JDBC URL: " + jdbcUrl);
+        System.out.println("========================================");
+        
+        // Retry logic pour la connexion à PostgreSQL
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                System.out.println("Tentative de connexion " + attempt + "/" + maxRetries + "...");
+                tempFactory = Persistence.createEntityManagerFactory("webapp-demo-pu", props);
+                System.out.println("✓ EntityManagerFactory créé avec succès");
+                break;
+            } catch (Exception ex) {
+                System.err.println("Échec tentative " + attempt + ": " + ex.getMessage());
+                if (attempt < maxRetries) {
+                    try {
+                        System.out.println("Attente de " + (retryDelay/1000) + "s avant nouvelle tentative...");
+                        Thread.sleep(retryDelay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new ExceptionInInitializerError("Interrupted during retry");
+                    }
+                } else {
+                    System.err.println("Échec après " + maxRetries + " tentatives");
+                    throw new ExceptionInInitializerError(ex);
+                }
+            }
         }
+        
+        entityManagerFactory = tempFactory;
     }
     
     public static EntityManager getEntityManager() {
