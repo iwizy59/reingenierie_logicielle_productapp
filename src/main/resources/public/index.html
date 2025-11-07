@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de Produits - Réingénierie Logicielle</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .form-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        .products-list {
+            margin-top: 30px;
+        }
+        
+        .product-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .product-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .product-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .product-price {
+            font-size: 20px;
+            color: #667eea;
+            font-weight: 700;
+        }
+        
+        .product-description {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .product-quantity {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .product-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-delete {
+            background: #dc3545;
+            flex: 1;
+        }
+        
+        .btn-delete:hover {
+            background: #c82333;
+        }
+        
+        .stats {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛍️ Gestion de Produits</h1>
+        
+        <div id="message"></div>
+        
+        <div class="stats" id="stats">
+            <h3>Total de produits: <span id="productCount">0</span></h3>
+        </div>
+        
+        <div class="form-section">
+            <h2>Ajouter un nouveau produit</h2>
+            <form id="productForm">
+                <div class="form-group">
+                    <label for="name">Nom du produit *</label>
+                    <input type="text" id="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="price">Prix (€) *</label>
+                    <input type="number" id="price" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">Quantité *</label>
+                    <input type="number" id="quantity" min="0" required>
+                </div>
+                <button type="submit">Ajouter le produit</button>
+            </form>
+        </div>
+        
+        <div class="products-list">
+            <h2>Liste des produits</h2>
+            <div id="productsList"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = '/api';
+        
+        // Charger les produits au démarrage
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProducts();
+            loadStats();
+        });
+        
+        // Soumettre le formulaire
+        document.getElementById('productForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const product = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                price: document.getElementById('price').value,
+                quantity: parseInt(document.getElementById('quantity').value)
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/products`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(product)
+                });
+                
+                if (response.ok) {
+                    showMessage('Produit ajouté avec succès!', 'success');
+                    document.getElementById('productForm').reset();
+                    loadProducts();
+                    loadStats();
+                } else {
+                    const error = await response.json();
+                    showMessage('Erreur: ' + error.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Erreur de connexion: ' + error.message, 'error');
+            }
+        });
+        
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${API_URL}/products`);
+                const products = await response.json();
+                
+                const productsList = document.getElementById('productsList');
+                
+                if (products.length === 0) {
+                    productsList.innerHTML = '<p>Aucun produit disponible.</p>';
+                    return;
+                }
+                
+                productsList.innerHTML = products.map(product => `
+                    <div class="product-card">
+                        <div class="product-header">
+                            <div class="product-name">${product.name}</div>
+                            <div class="product-price">${parseFloat(product.price).toFixed(2)} €</div>
+                        </div>
+                        <div class="product-description">${product.description || 'Aucune description'}</div>
+                        <div class="product-quantity">Quantité en stock: ${product.quantity}</div>
+                        <div class="product-actions">
+                            <button class="btn-delete" onclick="deleteProduct(${product.id})">Supprimer</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showMessage('Erreur lors du chargement des produits: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const stats = await response.json();
+                document.getElementById('productCount').textContent = stats.totalProducts;
+            } catch (error) {
+                console.error('Erreur lors du chargement des statistiques:', error);
+            }
+        }
+        
+        async function deleteProduct(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/products/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showMessage('Produit supprimé avec succès!', 'success');
+                    loadProducts();
+                    loadStats();
+                } else {
+                    const error = await response.json();
+                    showMessage('Erreur: ' + error.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Erreur: ' + error.message, 'error');
+            }
+        }
+        
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
