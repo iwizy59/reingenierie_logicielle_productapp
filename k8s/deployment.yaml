@@ -58,6 +58,16 @@ spec:
             secretKeyRef:
               name: postgres-secret
               key: DB_PASSWORD
+        - name: DB_MAX_RETRIES
+          valueFrom:
+            configMapKeyRef:
+              name: productapp-config
+              key: db.max.retries
+        - name: DB_RETRY_DELAY_MS
+          valueFrom:
+            configMapKeyRef:
+              name: productapp-config
+              key: db.retry.delay.ms
         resources:
           requests:
             memory: "256Mi"

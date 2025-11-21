@@ -12,8 +12,10 @@ public class HibernateUtil {
     
     static {
         EntityManagerFactory tempFactory = null;
-        int maxRetries = 10;
-        int retryDelay = 5000; // 5 secondes
+        
+        // Configuration du retry logic depuis variables d'environnement
+        int maxRetries = getEnvAsInt("DB_MAX_RETRIES", 10);
+        int retryDelay = getEnvAsInt("DB_RETRY_DELAY_MS", 5000); // millisecondes
         
         // Récupérer les variables d'environnement pour la configuration de la DB
         Map<String, String> props = new HashMap<>();
@@ -40,6 +42,9 @@ public class HibernateUtil {
         System.out.println("  Database: " + dbName);
         System.out.println("  User: " + dbUser);
         System.out.println("  JDBC URL: " + jdbcUrl);
+        System.out.println("Configuration Retry:");
+        System.out.println("  Max Retries: " + maxRetries);
+        System.out.println("  Retry Delay: " + retryDelay + "ms");
         System.out.println("========================================");
         
         // Retry logic pour la connexion à PostgreSQL
@@ -77,5 +82,24 @@ public class HibernateUtil {
         if (entityManagerFactory != null && entityManagerFactory.isOpen()) {
             entityManagerFactory.close();
         }
+    }
+    
+    /**
+     * Récupère une variable d'environnement en tant qu'entier avec une valeur par défaut
+     * @param envName Nom de la variable d'environnement
+     * @param defaultValue Valeur par défaut si la variable n'existe pas ou est invalide
+     * @return La valeur de la variable d'environnement ou la valeur par défaut
+     */
+    private static int getEnvAsInt(String envName, int defaultValue) {
+        String value = System.getenv(envName);
+        if (value != null && !value.isEmpty()) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                System.err.println("Valeur invalide pour " + envName + ": " + value + 
+                                   ". Utilisation de la valeur par défaut: " + defaultValue);
+            }
+        }
+        return defaultValue;
     }
 }

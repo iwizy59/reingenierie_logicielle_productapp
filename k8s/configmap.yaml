@@ -17,3 +17,7 @@ data:
   
   # Port de l'application
   port: "8080"
+  
+  # Configuration Database Retry Logic
+  db.max.retries: "10"
+  db.retry.delay.ms: "5000"
