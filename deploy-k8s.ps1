@@ -1,6 +1,6 @@
 ###############################################################################
-# Script de déploiement Kubernetes avec PostgreSQL (PowerShell)
-# Description: Déploie l'application ProductApp avec PostgreSQL sur K8s
+# Script de deploiement Kubernetes avec PostgreSQL (PowerShell)
+# Description: Deploie l'application ProductApp avec PostgreSQL sur K8s
 # Usage: .\deploy-k8s.ps1 [ImageTag] [Port]
 # Exemple: .\deploy-k8s.ps1 latest 8080
 ###############################################################################
@@ -47,29 +47,29 @@ function Write-Header {
     Write-Host "========================================`n" -ForegroundColor Blue
 }
 
-Write-Header "Déploiement Kubernetes ProductApp avec PostgreSQL"
+Write-Header "Deploiement Kubernetes ProductApp avec PostgreSQL"
 
-# Vérifier les prérequis
+# Verifier les prerequis
 function Test-Prerequisites {
-    Write-Info "Vérification des prérequis..."
+    Write-Info "Verification des prerequis..."
     
-    # Vérifier Docker
+    # Verifier Docker
     try {
         $null = docker --version
     } catch {
-        Write-Error-Custom "Docker n'est pas installé ou n'est pas dans le PATH"
+        Write-Error-Custom "Docker n'est pas installe ou n'est pas dans le PATH"
         exit 1
     }
     
-    # Vérifier kubectl
+    # Verifier kubectl
     try {
         $null = kubectl version --client=true 2>$null
     } catch {
-        Write-Error-Custom "kubectl n'est pas installé ou n'est pas dans le PATH"
+        Write-Error-Custom "kubectl n'est pas installe ou n'est pas dans le PATH"
         exit 1
     }
     
-    # Vérifier la connexion au cluster
+    # Verifier la connexion au cluster
     try {
         $null = kubectl cluster-info 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -80,32 +80,32 @@ function Test-Prerequisites {
         exit 1
     }
     
-    Write-Info "✓ Prérequis OK"
+    Write-Info "✓ Prerequis OK"
 }
 
-# Télécharger les images nécessaires
+# Telecharger les images necessaires
 function Get-RequiredImages {
-    Write-Info "Téléchargement des images nécessaires..."
+    Write-Info "Telechargement des images necessaires..."
     
     # BusyBox pour l'init container
     $busyboxExists = docker images busybox:1.36 --format "{{.Repository}}:{{.Tag}}" | Select-String "busybox:1.36"
     if (-not $busyboxExists) {
-        Write-Info "Téléchargement de busybox:1.36..."
+        Write-Info "Telechargement de busybox:1.36..."
         docker pull busybox:1.36
     } else {
-        Write-Info "✓ busybox:1.36 déjà présent"
+        Write-Info "✓ busybox:1.36 deja present"
     }
     
     # PostgreSQL
     $postgresExists = docker images postgres:16-alpine --format "{{.Repository}}:{{.Tag}}" | Select-String "postgres:16-alpine"
     if (-not $postgresExists) {
-        Write-Info "Téléchargement de postgres:16-alpine..."
+        Write-Info "Telechargement de postgres:16-alpine..."
         docker pull postgres:16-alpine
     } else {
-        Write-Info "✓ postgres:16-alpine déjà présent"
+        Write-Info "✓ postgres:16-alpine deja present"
     }
     
-    Write-Info "✓ Images nécessaires prêtes"
+    Write-Info "✓ Images necessaires pretes"
 }
 
 # Build de l'image Docker
@@ -116,9 +116,9 @@ function Build-DockerImage {
     
     if ($LASTEXITCODE -eq 0) {
         docker tag "${IMAGE_NAME}:${ImageTag}" "${IMAGE_NAME}:latest"
-        Write-Info "✓ Image Docker construite avec succès"
+        Write-Info "✓ Image Docker construite avec succes"
     } else {
-        Write-Error-Custom "Échec du build de l'image Docker"
+        Write-Error-Custom "echec du build de l'image Docker"
         exit 1
     }
 }
@@ -127,58 +127,58 @@ function Build-DockerImage {
 function Import-ImageToCluster {
     Write-Info "Chargement de l'image dans le cluster..."
     
-    # Détecter Minikube
+    # Detecter Minikube
     try {
         $minikubeStatus = minikube status 2>$null
         if ($LASTEXITCODE -eq 0) {
-            Write-Info "Minikube détecté - Chargement de l'image..."
+            Write-Info "Minikube detecte - Chargement de l'image..."
             minikube image load "${IMAGE_NAME}:latest"
-            Write-Info "✓ Image chargée dans Minikube"
+            Write-Info "✓ Image chargee dans Minikube"
             return
         }
     } catch {
         # Minikube n'est pas disponible
     }
     
-    # Détecter Kind
+    # Detecter Kind
     try {
         $kindClusters = kind get clusters 2>$null
         if ($LASTEXITCODE -eq 0 -and $kindClusters) {
             $clusterName = $kindClusters[0]
-            Write-Info "Kind détecté - Chargement de l'image dans le cluster: $clusterName"
+            Write-Info "Kind detecte - Chargement de l'image dans le cluster: $clusterName"
             kind load docker-image "${IMAGE_NAME}:latest" --name $clusterName
-            Write-Info "✓ Image chargée dans Kind"
+            Write-Info "✓ Image chargee dans Kind"
             return
         }
     } catch {
         # Kind n'est pas disponible
     }
     
-    Write-Warn "Cluster local non détecté (ni Minikube ni Kind)"
+    Write-Warn "Cluster local non detecte (ni Minikube ni Kind)"
     Write-Warn "Si vous utilisez un cluster cloud, assurez-vous de push l'image vers un registry"
 }
 
-# Déploiement sur Kubernetes
+# Deploiement sur Kubernetes
 function Deploy-ToK8s {
-    Write-Info "Déploiement sur Kubernetes..."
+    Write-Info "Deploiement sur Kubernetes..."
     
-    # Créer le namespace
+    # Creer le namespace
     kubectl apply -f "$K8S_DIR/namespace.yaml"
     
-    # Déployer PostgreSQL
-    Write-Info "Déploiement de PostgreSQL..."
+    # Deployer PostgreSQL
+    Write-Info "Deploiement de PostgreSQL..."
     kubectl apply -f "$K8S_DIR/postgres-configmap.yaml"
     kubectl apply -f "$K8S_DIR/postgres-secret.yaml"
     kubectl apply -f "$K8S_DIR/postgres-pvc.yaml"
     kubectl apply -f "$K8S_DIR/postgres-statefulset.yaml"
     kubectl apply -f "$K8S_DIR/postgres-service.yaml"
     
-    # Attendre que PostgreSQL soit prêt
-    Write-Info "Attente du démarrage de PostgreSQL..."
+    # Attendre que PostgreSQL soit pret
+    Write-Info "Attente du demarrage de PostgreSQL..."
     kubectl wait --for=condition=ready pod -l app=postgres -n $NAMESPACE --timeout=120s
     
-    # Déployer l'application
-    Write-Info "Déploiement de l'application..."
+    # Deployer l'application
+    Write-Info "Deploiement de l'application..."
     kubectl apply -f "$K8S_DIR/configmap.yaml"
     kubectl apply -f "$K8S_DIR/deployment.yaml"
     kubectl apply -f "$K8S_DIR/service.yaml"
@@ -186,25 +186,25 @@ function Deploy-ToK8s {
     kubectl apply -f "$K8S_DIR/ingress.yaml"
     kubectl apply -f "$K8S_DIR/networkpolicy.yaml"
     
-    Write-Info "✓ Ressources Kubernetes déployées"
+    Write-Info "✓ Ressources Kubernetes deployees"
 }
 
-# Vérifier le déploiement
+# Verifier le deploiement
 function Test-Deployment {
-    Write-Info "Vérification du déploiement..."
+    Write-Info "Verification du deploiement..."
     
-    # Vérifier PostgreSQL
-    Write-Info "Vérification de PostgreSQL..."
+    # Verifier PostgreSQL
+    Write-Info "Verification de PostgreSQL..."
     kubectl wait --for=condition=ready pod -l app=postgres -n $NAMESPACE --timeout=60s
     
-    # Vérifier l'application
-    Write-Info "Vérification de l'application..."
+    # Verifier l'application
+    Write-Info "Verification de l'application..."
     kubectl rollout status deployment/productapp-deployment -n $NAMESPACE --timeout=300s
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Info "✓ Déploiement réussi"
+        Write-Info "✓ Deploiement reussi"
     } else {
-        Write-Error-Custom "Échec du déploiement"
+        Write-Error-Custom "echec du deploiement"
         exit 1
     }
 }
@@ -225,7 +225,7 @@ function Stop-OldPortForwards {
                 # Ignorer les erreurs
             }
         }
-        Write-Info "✓ Anciens port-forwards arrêtés"
+        Write-Info "✓ Anciens port-forwards arretes"
     }
     
     # Nettoyer l'ancien fichier PID
@@ -242,11 +242,11 @@ function Stop-OldPortForwards {
     }
 }
 
-# Démarrer le port-forward
+# Demarrer le port-forward
 function Start-PortForward {
-    Write-Info "Démarrage du port-forward sur le port ${PortForwardPort}..."
+    Write-Info "Demarrage du port-forward sur le port ${PortForwardPort}..."
     
-    # Démarrer le port-forward en arrière-plan
+    # Demarrer le port-forward en arriere-plan
     $job = Start-Job -ScriptBlock {
         param($ns, $port, $logFile)
         kubectl port-forward -n $ns svc/productapp-service "${port}:80" 2>&1 | Out-File -FilePath $logFile
@@ -255,14 +255,14 @@ function Start-PortForward {
     # Sauvegarder le PID du job
     $job.Id | Out-File -FilePath $PID_FILE
     
-    # Attendre que le port-forward soit prêt
+    # Attendre que le port-forward soit pret
     Start-Sleep -Seconds 3
     
     if ($job.State -eq "Running") {
         Write-Success "✓ Port-forward actif sur http://localhost:${PortForwardPort}"
-        Write-Host "   Job ID: $($job.Id) (utilisez 'Stop-Job $($job.Id); Remove-Job $($job.Id)' pour arrêter)" -ForegroundColor Gray
+        Write-Host "   Job ID: $($job.Id) (utilisez 'Stop-Job $($job.Id); Remove-Job $($job.Id)' pour arreter)" -ForegroundColor Gray
     } else {
-        Write-Error-Custom "Échec du démarrage du port-forward"
+        Write-Error-Custom "echec du demarrage du port-forward"
         return $false
     }
     
@@ -282,7 +282,7 @@ function Test-Application {
             Write-Success "✓ Health check OK"
         }
     } catch {
-        Write-Warn "Health check failed (l'app démarre peut-être encore)"
+        Write-Warn "Health check failed (l'app demarre peut-etre encore)"
     }
     
     # Test API products
@@ -290,7 +290,7 @@ function Test-Application {
         $response = Invoke-RestMethod -Uri "http://localhost:${PortForwardPort}/api/products" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
         $productCount = $response.Count
         if ($productCount -gt 0) {
-            Write-Success "✓ API Products OK ($productCount produits trouvés)"
+            Write-Success "✓ API Products OK ($productCount produits trouves)"
         } else {
             Write-Warn "API Products retourne 0 produits"
         }
@@ -302,7 +302,7 @@ function Test-Application {
 # Afficher les informations
 function Show-Info {
     Write-Host "`n=========================================" -ForegroundColor Cyan
-    Write-Host "  Informations du déploiement" -ForegroundColor Cyan
+    Write-Host "  Informations du deploiement" -ForegroundColor Cyan
     Write-Host "=========================================`n" -ForegroundColor Cyan
     
     Write-Host "📦 PostgreSQL:" -ForegroundColor Yellow
@@ -321,7 +321,7 @@ function Show-Info {
     kubectl get pvc -n $NAMESPACE
     
     Write-Host "`n=========================================" -ForegroundColor Cyan
-    Write-Host "  Accès à l'application" -ForegroundColor Cyan
+    Write-Host "  Acces a l'application" -ForegroundColor Cyan
     Write-Host "=========================================`n" -ForegroundColor Cyan
     
     Write-Host "🌍 Application Web:" -ForegroundColor Green
@@ -340,7 +340,7 @@ function Show-Info {
     Write-Host "   Shell DB: " -NoNewline
     Write-Host "kubectl exec -it -n $NAMESPACE postgres-0 -- psql -U postgres -d productdb" -ForegroundColor Yellow
     
-    Write-Host "`n🛑 Arrêter le port-forward:" -ForegroundColor Green
+    Write-Host "`n🛑 Arreter le port-forward:" -ForegroundColor Green
     if (Test-Path $PID_FILE) {
         $jobId = Get-Content $PID_FILE
         Write-Host "   Stop-Job $jobId; Remove-Job $jobId" -ForegroundColor Yellow
@@ -370,7 +370,7 @@ function Main {
         
         Write-Host ""
         Write-Success "========================================="
-        Write-Success "✓ Déploiement terminé avec succès!"
+        Write-Success "✓ Deploiement termine avec succes!"
         Write-Success "========================================="
         Write-Host ""
         Write-Info "Ouvrez votre navigateur sur: http://localhost:${PortForwardPort}"
@@ -381,7 +381,7 @@ function Main {
             Start-Sleep -Seconds 2
             Start-Process "http://localhost:${PortForwardPort}"
         } catch {
-            # Ignorer si l'ouverture échoue
+            # Ignorer si l'ouverture echoue
         }
         
     } catch {
@@ -402,5 +402,5 @@ $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
     }
 }
 
-# Exécution
+# Execution
 Main

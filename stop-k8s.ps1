@@ -1,9 +1,9 @@
 ###############################################################################
-# Script pour arrêter proprement le déploiement Kubernetes (PowerShell)
+# Script pour arreter proprement le deploiement Kubernetes (PowerShell)
 # Usage: .\stop-k8s.ps1 [-Force] [-KeepData]
 # Options:
 #   -Force      : Supprime sans confirmation
-#   -KeepData   : Conserve les PersistentVolumeClaims (données PostgreSQL)
+#   -KeepData   : Conserve les PersistentVolumeClaims (donnees PostgreSQL)
 ###############################################################################
 
 param(
@@ -39,16 +39,16 @@ function Write-Success {
 }
 
 Write-Host "`n========================================" -ForegroundColor Blue
-Write-Host "  Arrêt de ProductApp Kubernetes" -ForegroundColor Blue
+Write-Host "  Arret de ProductApp Kubernetes" -ForegroundColor Blue
 Write-Host "========================================`n" -ForegroundColor Blue
 
-# Arrêter tous les port-forwards actifs sur le port 8080
+# Arreter tous les port-forwards actifs sur le port 8080
 Write-Info "Recherche des port-forwards actifs..."
 $processes = Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | 
              Select-Object -ExpandProperty OwningProcess -Unique
 
 if ($processes) {
-    Write-Info "Arrêt des port-forwards sur le port 8080..."
+    Write-Info "Arret des port-forwards sur le port 8080..."
     foreach ($pid in $processes) {
         try {
             Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
@@ -56,22 +56,22 @@ if ($processes) {
             # Ignorer les erreurs
         }
     }
-    Write-Info "✓ Port-forwards arrêtés"
+    Write-Info "Port-forwards arretes"
 } else {
     Write-Info "Aucun port-forward actif sur le port 8080"
 }
 
-# Arrêter le port-forward via le fichier PID
+# Arreter le port-forward via le fichier PID
 if (Test-Path $PID_FILE) {
     $jobId = Get-Content $PID_FILE -ErrorAction SilentlyContinue
     if ($jobId) {
         try {
             $job = Get-Job -Id $jobId -ErrorAction SilentlyContinue
             if ($job) {
-                Write-Info "Arrêt du port-forward (Job ID: $jobId)..."
+                Write-Info "Arret du port-forward (Job ID: $jobId)..."
                 Stop-Job -Id $jobId -ErrorAction SilentlyContinue
                 Remove-Job -Id $jobId -ErrorAction SilentlyContinue
-                Write-Info "✓ Port-forward arrêté"
+                Write-Info "Port-forward arrete"
             }
         } catch {
             # Ignorer les erreurs
@@ -109,7 +109,7 @@ if ($deleteResources) {
     Write-Info "Suppression des ressources Kubernetes..."
     
     if ($KeepData) {
-        Write-Warn "Conservation des PersistentVolumeClaims (données PostgreSQL)"
+        Write-Warn "Conservation des PersistentVolumeClaims (donnees PostgreSQL)"
         
         # Supprimer les ressources sauf les PVC
         Write-Info "Suppression du HPA..."
@@ -135,40 +135,40 @@ if ($deleteResources) {
         kubectl delete secret --all -n $NAMESPACE --ignore-not-found=true
         
         Write-Host ""
-        Write-Success "✓ Ressources supprimées (PVC conservés)"
+        Write-Success "Ressources supprimees (PVC conserves)"
         
         Write-Host ""
-        Write-Info "PersistentVolumeClaims conservés:"
+        Write-Info "PersistentVolumeClaims conserves:"
         kubectl get pvc -n $NAMESPACE
         Write-Host ""
-        Write-Warn "Pour supprimer les données, exécutez:"
+        Write-Warn "Pour supprimer les donnees, executez:"
         Write-Warn "  kubectl delete pvc --all -n $NAMESPACE"
         Write-Warn "  kubectl delete namespace $NAMESPACE"
     } else {
-        Write-Info "Suppression complète du namespace (incluant les données)..."
+        Write-Info "Suppression complete du namespace (incluant les donnees)..."
         kubectl delete namespace $NAMESPACE --timeout=60s
-        Write-Success "✓ Namespace et toutes les ressources supprimés"
+        Write-Success "Namespace et toutes les ressources supprimes"
     }
 } else {
-    Write-Info "Les ressources Kubernetes sont conservées"
+    Write-Info "Les ressources Kubernetes sont conservees"
     Write-Info "Les pods continuent de tourner dans le namespace: $NAMESPACE"
 }
 
 Write-Host ""
 Write-Success "========================================="
-Write-Success "✓ Arrêt terminé!"
+Write-Success "Arret termine!"
 Write-Success "========================================="
 Write-Host ""
 
-# Afficher un récapitulatif
+# Afficher un recapitulatif
 if ($deleteResources) {
     if (-not $KeepData) {
-        Write-Info "Pour redémarrer l'application:"
+        Write-Info "Pour redemarrer l'application:"
         Write-Host "  .\deploy-k8s.ps1" -ForegroundColor Yellow
     } else {
-        Write-Info "Pour redémarrer l'application avec les données existantes:"
+        Write-Info "Pour redemarrer l'application avec les donnees existantes:"
         Write-Host "  .\deploy-k8s.ps1" -ForegroundColor Yellow
         Write-Host ""
-        Write-Info "Les données PostgreSQL seront automatiquement réutilisées"
+        Write-Info "Les donnees PostgreSQL seront automatiquement reutilisees"
     }
 }
