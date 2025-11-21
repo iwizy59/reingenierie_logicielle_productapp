@@ -1,0 +1,34 @@
+# Git attributes pour gérer les fins de lignes multi-plateformes
+
+# Par défaut, laisser Git décider
+* text=auto
+
+# Scripts bash: toujours LF (Linux/macOS)
+*.sh text eol=lf
+
+# Scripts PowerShell: toujours CRLF (Windows)
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# Fichiers texte: conversion automatique
+*.md text
+*.txt text
+*.yaml text
+*.yml text
+*.json text
+*.xml text
+*.properties text
+
+# Fichiers Java: LF (convention standard)
+*.java text eol=lf
+
+# Fichiers binaires: pas de conversion
+*.jar binary
+*.class binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
