@@ -38,6 +38,13 @@
             <version>42.7.1</version>
         </dependency>
         
+        <!-- C3P0 Connection Pool -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-c3p0</artifactId>
+            <version>${hibernate.version}</version>
+        </dependency>
+        
         <!-- H2 Database (keep for local dev) -->
         <dependency>
             <groupId>com.h2database</groupId>

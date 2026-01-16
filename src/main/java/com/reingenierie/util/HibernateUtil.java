@@ -28,12 +28,25 @@ public class HibernateUtil {
         
         String jdbcUrl = String.format("jdbc:postgresql://%s:%s/%s", dbHost, dbPort, dbName);
         
+        // Configuration du pool de connexions (externalise via variables d'environnement)
+        int connectionPoolSize = getEnvAsInt("DB_CONNECTION_POOL_SIZE", 10);
+        int connectionPoolMinSize = getEnvAsInt("DB_CONNECTION_POOL_MIN_SIZE", 5);
+        int connectionPoolMaxSize = getEnvAsInt("DB_CONNECTION_POOL_MAX_SIZE", 20);
+        int connectionTimeout = getEnvAsInt("DB_CONNECTION_TIMEOUT", 30000); // 30 secondes
+        
         // Forcer PostgreSQL
         props.put("jakarta.persistence.jdbc.driver", "org.postgresql.Driver");
         props.put("jakarta.persistence.jdbc.url", jdbcUrl);
         props.put("jakarta.persistence.jdbc.user", dbUser);
         props.put("jakarta.persistence.jdbc.password", dbPassword);
         props.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+        
+        // Configuration du pool de connexions
+        props.put("hibernate.connection.pool_size", String.valueOf(connectionPoolSize));
+        props.put("hibernate.c3p0.min_size", String.valueOf(connectionPoolMinSize));
+        props.put("hibernate.c3p0.max_size", String.valueOf(connectionPoolMaxSize));
+        props.put("hibernate.c3p0.timeout", String.valueOf(connectionTimeout));
+        props.put("hibernate.c3p0.max_statements", "50");
         
         System.out.println("========================================");
         System.out.println("Configuration Base de Données:");
@@ -42,10 +55,15 @@ public class HibernateUtil {
         System.out.println("  Database: " + dbName);
         System.out.println("  User: " + dbUser);
         System.out.println("  JDBC URL: " + jdbcUrl);
+        System.out.println("Configuration Connection Pool:");
+        System.out.println("  Pool Size: " + connectionPoolSize);
+        System.out.println("  Min Size: " + connectionPoolMinSize);
+        System.out.println("  Max Size: " + connectionPoolMaxSize);
+        System.out.println("  Timeout: " + connectionTimeout + "ms");
         System.out.println("Configuration Retry:");
         System.out.println("  Max Retries: " + maxRetries);
         System.out.println("  Retry Delay: " + retryDelay + "ms");
-        System.out.println("========================================");
+        System.out.println("========================================");;
         
         // Retry logic pour la connexion à PostgreSQL
         for (int attempt = 1; attempt <= maxRetries; attempt++) {

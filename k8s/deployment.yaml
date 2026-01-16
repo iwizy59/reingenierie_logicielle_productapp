@@ -68,6 +68,26 @@ spec:
             configMapKeyRef:
               name: productapp-config
               key: db.retry.delay.ms
+        - name: DB_CONNECTION_POOL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: productapp-config
+              key: db.pool.size
+        - name: DB_CONNECTION_POOL_MIN_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: productapp-config
+              key: db.pool.min
+        - name: DB_CONNECTION_POOL_MAX_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: productapp-config
+              key: db.pool.max
+        - name: DB_CONNECTION_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: productapp-config
+              key: db.pool.timeout
         resources:
           requests:
             memory: "256Mi"

@@ -16,13 +16,13 @@
             <!-- NE PAS définir jdbc.driver, jdbc.url, jdbc.user, jdbc.password ici -->
             <!-- pour permettre la surcharge par variables d'environnement -->
             
+            <!-- Connection Pool également défini via code Java (HibernateUtil) -->
+            <!-- pour permettre la configuration dynamique selon l'environnement -->
+            
             <!-- Hibernate Configuration -->
             <property name="hibernate.hbm2ddl.auto" value="update"/>
             <property name="hibernate.show_sql" value="true"/>
             <property name="hibernate.format_sql" value="true"/>
-            
-            <!-- Connection Pool -->
-            <property name="hibernate.connection.pool_size" value="10"/>
         </properties>
     </persistence-unit>
 </persistence>

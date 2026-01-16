@@ -21,3 +21,13 @@ data:
   # Configuration Database Retry Logic
   db.max.retries: "10"
   db.retry.delay.ms: "5000"
+  
+  # Configuration Connection Pool (12-Factor: III. Config)
+  db.pool.size: "10"
+  db.pool.min: "5"
+  db.pool.max: "20"
+  db.pool.timeout: "30000"
+  
+  # Configuration Admin Processes (12-Factor: XII. Admin Processes)
+  # Initialisation des données mockées (false en production)
+  init.mock.data: "false"
