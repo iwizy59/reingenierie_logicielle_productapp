@@ -90,17 +90,14 @@ delete_k8s_resources() {
     kubectl delete configmap postgres-config -n ${NAMESPACE} --ignore-not-found=true
     kubectl delete secret postgres-secret -n ${NAMESPACE} --ignore-not-found=true
     
-    # Supprimer le namespace et attendre complètement
+    # Supprimer le namespace avec suppression forcée
     log_info "Suppression du namespace productapp..."
-    kubectl delete namespace ${NAMESPACE} --ignore-not-found=true --timeout=60s || {
-        log_warn "Timeout - Forçage de la suppression..."
-        # Forcer en retirant les finalizers
-        kubectl get namespace ${NAMESPACE} -o json 2>/dev/null | \
-            jq '.spec.finalizers = []' | \
-            kubectl replace --raw /api/v1/namespaces/${NAMESPACE}/finalize -f - 2>/dev/null || true
-    }
+    kubectl delete namespace ${NAMESPACE} --force --grace-period=0 2>&1 &
+    sleep 2
+    kubectl get namespace ${NAMESPACE} -o json 2>/dev/null | jq -r '.spec.finalizers = []' | kubectl replace --raw /api/v1/namespaces/${NAMESPACE}/finalize -f - 2>/dev/null || true
     
     # Vérifier que c'est vraiment supprimé
+    sleep 2
     if kubectl get namespace ${NAMESPACE} > /dev/null 2>&1; then
         log_error "Le namespace ${NAMESPACE} existe encore après suppression"
     else
@@ -144,26 +141,14 @@ delete_rancher() {
         log_info "Suppression du PVC Rancher..."
         kubectl delete pvc rancher-data -n ${RANCHER_NAMESPACE} --ignore-not-found=true 2>/dev/null || true
         
-        # 6. Retirer les finalizers AVANT de supprimer
-        log_info "Retrait des finalizers du namespace cattle-system..."
-        kubectl patch namespace ${RANCHER_NAMESPACE} -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-        
-        # 7. Supprimer le namespace (devrait être instantané maintenant)
-        log_info "Suppression du namespace cattle-system..."
-        kubectl delete namespace ${RANCHER_NAMESPACE} --timeout=30s 2>/dev/null || true
-        
-        # 7. Supprimer le namespace (devrait être instantané maintenant)
-        log_info "Suppression du namespace cattle-system..."
-        kubectl delete namespace ${RANCHER_NAMESPACE} --timeout=30s 2>/dev/null || true
-        
-        # 8. Vérifier que c'est vraiment supprimé
+        # 6. Suppression forcée du namespace avec finalize API
+        log_info "Suppression forcée du namespace cattle-system..."
+        kubectl delete namespace ${RANCHER_NAMESPACE} --force --grace-period=0 2>&1 &
         sleep 2
-        if kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
-            log_warn "Le namespace existe encore, forçage final..."
-            kubectl delete namespace ${RANCHER_NAMESPACE} --force --grace-period=0 2>/dev/null || true
-            sleep 2
-        fi
+        kubectl get namespace ${RANCHER_NAMESPACE} -o json 2>/dev/null | jq -r '.spec.finalizers = []' | kubectl replace --raw /api/v1/namespaces/${RANCHER_NAMESPACE}/finalize -f - 2>/dev/null || true
         
+        # 7. Vérifier que c'est vraiment supprimé
+        sleep 2
         if kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
             log_error "Impossible de supprimer complètement cattle-system"
         else
