@@ -19,6 +19,7 @@ MAGENTA='\033[0;35m'
 NC='\033[0m'
 
 NAMESPACE="productapp"
+RANCHER_NAMESPACE="cattle-system"
 FORCE_DELETE=false
 KEEP_DATA=false
 
@@ -57,12 +58,14 @@ log_success() {
 }
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Arrêt de ProductApp Kubernetes${NC}"
+echo -e "${BLUE}  Arrêt ProductApp + Rancher Kubernetes${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# Arrêter tous les port-forwards actifs sur le port 8080
+# Arrêter tous les port-forwards actifs sur les ports 8080 et 8443
 log_info "Recherche des port-forwards actifs..."
+
+# Port 8080 (ProductApp)
 if lsof -ti:8080 > /dev/null 2>&1; then
     log_info "Arrêt des port-forwards sur le port 8080..."
     lsof -ti:8080 | xargs kill -9 2>/dev/null || true
@@ -71,15 +74,26 @@ else
     log_info "Aucun port-forward actif sur le port 8080"
 fi
 
-# Arrêter le port-forward via le fichier PID
+# Arrêter le port-forward via le fichier PID (ProductApp)
 if [ -f "/tmp/productapp-port-forward.pid" ]; then
     PID=$(cat /tmp/productapp-port-forward.pid)
     if ps -p $PID > /dev/null 2>&1; then
-        log_info "Arrêt du port-forward (PID: $PID)..."
+        log_info "Arrêt du port-forward ProductApp (PID: $PID)..."
         kill $PID 2>/dev/null || true
-        log_info "✓ Port-forward arrêté"
+        log_info "✓ Port-forward ProductApp arrêté"
     fi
     rm -f /tmp/productapp-port-forward.pid
+fi
+
+# Arrêter le port-forward Rancher via le fichier PID
+if [ -f "/tmp/rancher-port-forward.pid" ]; then
+    PID=$(cat /tmp/rancher-port-forward.pid)
+    if ps -p $PID > /dev/null 2>&1; then
+        log_info "Arrêt du port-forward Rancher (PID: $PID)..."
+        kill $PID 2>/dev/null || true
+        log_info "✓ Port-forward Rancher arrêté"
+    fi
+    rm -f /tmp/rancher-port-forward.pid
 fi
 
 # Vérifier si le namespace existe
@@ -91,12 +105,19 @@ fi
 # Afficher les ressources actuelles
 echo ""
 log_info "Ressources actuelles dans le namespace ${NAMESPACE}:"
-kubectl get all,pvc,networkpolicy -n ${NAMESPACE}
+kubectl get all,pvc,networkpolicy -n ${NAMESPACE} 2>/dev/null || log_warn "Namespace ${NAMESPACE} n'existe pas ou est vide"
+
+# Vérifier si Rancher est déployé
+if kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
+    echo ""
+    log_info "Rancher détecté dans le namespace ${RANCHER_NAMESPACE}"
+    kubectl get all,pvc -n ${RANCHER_NAMESPACE}
+fi
 echo ""
 
 # Option pour supprimer toutes les ressources
 if [ "$FORCE_DELETE" = false ]; then
-    read -p "Voulez-vous supprimer toutes les ressources Kubernetes? (y/N): " -n 1 -r
+    read -p "Voulez-vous supprimer toutes les ressources Kubernetes (ProductApp + Rancher)? (y/N): " -n 1 -r
     echo
 else
     REPLY="y"
@@ -108,7 +129,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     if [ "$KEEP_DATA" = true ]; then
         log_warn "Conservation des PersistentVolumeClaims (données PostgreSQL)"
         
-        # Supprimer les ressources sauf les PVC
+        # Supprimer les ressources ProductApp sauf les PVC
         log_info "Suppression du HPA..."
         kubectl delete hpa --all -n ${NAMESPACE} --ignore-not-found=true
         
@@ -132,7 +153,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         kubectl delete secret --all -n ${NAMESPACE} --ignore-not-found=true
         
         echo ""
-        log_success "✓ Ressources supprimées (PVC conservés)"
+        log_success "✓ Ressources ProductApp supprimées (PVC conservés)"
         
         echo ""
         log_info "PersistentVolumeClaims conservés:"
@@ -142,9 +163,38 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         log_warn "  kubectl delete pvc --all -n ${NAMESPACE}"
         log_warn "  kubectl delete namespace ${NAMESPACE}"
     else
-        log_info "Suppression complète du namespace (incluant les données)..."
+        log_info "Suppression complète du namespace ProductApp (incluant les données)..."
         kubectl delete namespace ${NAMESPACE} --timeout=60s
-        log_success "✓ Namespace et toutes les ressources supprimés"
+        log_success "✓ Namespace ProductApp et toutes les ressources supprimés"
+    fi
+    
+    # Supprimer Rancher si présent
+    if kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
+        echo ""
+        log_info "Suppression de Rancher..."
+        
+        # Supprimer le ClusterRoleBinding d'abord
+        kubectl delete clusterrolebinding rancher --ignore-not-found=true
+        
+        # Supprimer les webhooks Rancher (important pour éviter les erreurs futures)
+        log_info "Nettoyage des webhooks Rancher..."
+        kubectl delete validatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true
+        kubectl delete mutatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true
+        
+        # Supprimer le namespace en arrière-plan (non-bloquant)
+        kubectl delete namespace ${RANCHER_NAMESPACE} --timeout=30s 2>/dev/null || {
+            log_warn "⏳ La suppression de Rancher continue en arrière-plan"
+            log_info "Vérifiez l'état avec: kubectl get namespace cattle-system"
+            # Lancer la suppression en arrière-plan
+            (kubectl delete namespace ${RANCHER_NAMESPACE} --wait=false 2>/dev/null &)
+        }
+        
+        # Vérifier si le namespace est déjà supprimé
+        if ! kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
+            log_success "✓ Rancher supprimé"
+        else
+            log_info "✓ Suppression de Rancher en cours..."
+        fi
     fi
 else
     log_info "Les ressources Kubernetes sont conservées"

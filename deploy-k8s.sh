@@ -20,11 +20,15 @@ IMAGE_NAME="productapp"
 IMAGE_TAG="${1:-latest}"
 NAMESPACE="productapp"
 K8S_DIR="k8s"
+RANCHER_DIR="rancher"
+RANCHER_NAMESPACE="cattle-system"
 PORT_FORWARD_PORT="${2:-8080}"
+RANCHER_PORT="${3:-8443}"
+DEPLOY_RANCHER="${DEPLOY_RANCHER:-true}"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  Déploiement Kubernetes ProductApp${NC}"
-echo -e "${BLUE}  avec PostgreSQL${NC}"
+echo -e "${BLUE}  avec PostgreSQL et Rancher${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
@@ -158,9 +162,115 @@ deploy_to_k8s() {
     log_info "✓ Ressources Kubernetes déployées"
 }
 
+# Déployer Rancher
+deploy_rancher() {
+    if [ "$DEPLOY_RANCHER" != "true" ]; then
+        log_info "Déploiement de Rancher ignoré (DEPLOY_RANCHER=false)"
+        return 0
+    fi
+    
+    log_info "Déploiement de Rancher pour la gestion du cluster..."
+    
+    # Vérifier si Rancher est déjà déployé
+    if kubectl get namespace "$RANCHER_NAMESPACE" &> /dev/null; then
+        log_warn "Rancher est déjà déployé, passage..."
+        return 0
+    fi
+    
+    # Créer le namespace
+    log_info "Création du namespace $RANCHER_NAMESPACE..."
+    kubectl apply -f "$RANCHER_DIR/namespace.yaml"
+    
+    # Déployer le ServiceAccount et RBAC
+    log_info "Déploiement du ServiceAccount et RBAC..."
+    kubectl apply -f "$RANCHER_DIR/serviceaccount.yaml"
+    
+    # Déployer le PVC
+    log_info "Création du PersistentVolumeClaim..."
+    kubectl apply -f "$RANCHER_DIR/pvc.yaml"
+    
+    # Attendre que le PVC soit bound
+    kubectl wait --for=condition=Bound pvc/rancher-data -n "$RANCHER_NAMESPACE" --timeout=120s 2>/dev/null || true
+    
+    # Déployer Rancher
+    log_info "Déploiement de l'application Rancher..."
+    kubectl apply -f "$RANCHER_DIR/deployment.yaml"
+    
+    # Déployer le Service
+    log_info "Création du Service Rancher..."
+    kubectl apply -f "$RANCHER_DIR/service.yaml"
+    
+    # Déployer l'Ingress (optionnel)
+    kubectl apply -f "$RANCHER_DIR/ingress.yaml" 2>/dev/null || log_warn "Ingress Rancher non créé"
+    
+    log_success "✓ Rancher déployé"
+}
+
+# Vérifier le déploiement de Rancher
+check_rancher_deployment() {
+    if [ "$DEPLOY_RANCHER" != "true" ]; then
+        return 0
+    fi
+    
+    if ! kubectl get namespace "$RANCHER_NAMESPACE" &> /dev/null; then
+        return 0
+    fi
+    
+    log_info "Vérification du statut de Rancher..."
+    
+    # Attendre que le pod soit prêt (timeout 30 secondes, non bloquant)
+    if kubectl wait --for=condition=ready pod -l app=rancher -n "$RANCHER_NAMESPACE" --timeout=30s 2>/dev/null; then
+        log_success "✓ Rancher est prêt"
+    else
+        log_warn "⏳ Rancher démarre en arrière-plan (peut prendre 2-3 minutes)"
+        log_info "Vous pourrez y accéder sur https://localhost:${RANCHER_PORT} une fois démarré"
+    fi
+}
+
+# Configuration du port-forward Rancher
+setup_rancher_port_forward() {
+    if [ "$DEPLOY_RANCHER" != "true" ]; then
+        return 0
+    fi
+    
+    if ! kubectl get namespace "$RANCHER_NAMESPACE" &> /dev/null; then
+        return 0
+    fi
+    
+    log_info "Configuration du port-forward Rancher..."
+    
+    # Tuer les anciens port-forwards
+    if [ -f /tmp/rancher-port-forward.pid ]; then
+        OLD_PID=$(cat /tmp/rancher-port-forward.pid)
+        if ps -p $OLD_PID > /dev/null 2>&1; then
+            kill $OLD_PID 2>/dev/null || true
+        fi
+        rm /tmp/rancher-port-forward.pid
+    fi
+    
+    # Démarrer le port-forward en arrière-plan (même si le pod n'est pas encore Running)
+    kubectl port-forward -n "$RANCHER_NAMESPACE" svc/rancher $RANCHER_PORT:443 > /tmp/rancher-port-forward.log 2>&1 &
+    echo $! > /tmp/rancher-port-forward.pid
+    
+    sleep 2
+    
+    if ps -p $(cat /tmp/rancher-port-forward.pid 2>/dev/null) > /dev/null 2>&1; then
+        log_success "✓ Port-forward Rancher configuré sur https://localhost:$RANCHER_PORT"
+        log_info "   (Rancher sera accessible une fois le pod démarré)"
+    else
+        log_warn "⚠️  Port-forward Rancher non disponible pour le moment"
+    fi
+}
+
 # Vérifier le déploiement
 check_deployment() {
     log_info "Vérification du déploiement..."
+    # Afficher les infos Rancher si déployé
+    if [ "$DEPLOY_RANCHER" = "true" ] && kubectl get namespace "$RANCHER_NAMESPACE" &> /dev/null; then
+        echo -e "\n${YELLOW}🎛️  Rancher (Gestion de cluster):${NC}"
+        kubectl get pods -n ${RANCHER_NAMESPACE} -l app=rancher 2>/dev/null || echo "   Démarrage en cours..."
+    fi
+    
     
     # Vérifier PostgreSQL
     log_info "Vérification de PostgreSQL..."
@@ -175,6 +285,25 @@ check_deployment() {
     else
         log_error "Échec du déploiement"
         exit 1
+    fi
+    
+    # Afficher les infos Rancher si déployé
+    if [ "$DEPLOY_RANCHER" = "true" ] && kubectl get namespace "$RANCHER_NAMESPACE" &> /dev/null 2>&1; then
+        echo -e "${CYAN}=========================================${NC}"
+        echo -e "${CYAN}  Rancher - Gestion de Cluster${NC}"
+        echo -e "${CYAN}=========================================${NC}"
+        echo ""
+        echo -e "${GREEN}🎛️  Interface Rancher:${NC}"
+        echo -e "   ${MAGENTA}https://localhost:${RANCHER_PORT}${NC}"
+        echo ""
+        echo -e "${YELLOW}⚠️  Informations Rancher:${NC}"
+        echo -e "   - Acceptez le certificat auto-signé"
+        echo -e "   - Mot de passe initial: ${CYAN}admin${NC}"
+        echo -e "   - Changez le mot de passe à la première connexion"
+        echo ""
+        echo -e "${GREEN}🛑 Arrêter le port-forward Rancher:${NC}"
+        echo -e "   ${YELLOW}kill \$(cat /tmp/rancher-port-forward.pid)${NC}"
+        echo ""
     fi
 }
 
@@ -269,9 +398,12 @@ show_info() {
     echo -e "${CYAN}  Accès à l'application${NC}"
     echo -e "${CYAN}=========================================${NC}"
     echo ""
-    echo -e "${GREEN}🌍 Application Web:${NC}"
-    echo -e "   ${MAGENTA}http://localhost:${PORT_FORWARD_PORT}${NC}"
-    echo ""
+    deploy_rancher
+    check_deployment
+    check_rancher_deployment
+    stop_old_port_forwards
+    start_port_forward
+    setup_rancher""
     echo -e "${GREEN}🔌 API Endpoints:${NC}"
     echo -e "   Health:   http://localhost:${PORT_FORWARD_PORT}/api/health"
     echo -e "   Products: http://localhost:${PORT_FORWARD_PORT}/api/products"
@@ -294,9 +426,12 @@ main() {
     build_image
     load_image_to_cluster
     deploy_to_k8s
+    deploy_rancher
     check_deployment
+    check_rancher_deployment
     stop_old_port_forwards
     start_port_forward
+    setup_rancher_port_forward
     test_application
     show_info
     
