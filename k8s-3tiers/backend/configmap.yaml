@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: productapp
+data:
+  # Configuration de la base de données
+  db.max.retries: "5"
+  db.retry.delay.ms: "2000"
+  db.pool.size: "10"
+  db.pool.min: "5"
+  db.pool.max: "20"
+  db.pool.timeout: "30"
+  
+  # Configuration de l'initialisation des données
+  init.mock.data: "false"

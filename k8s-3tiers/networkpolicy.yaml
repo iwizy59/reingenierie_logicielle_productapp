@@ -1,0 +1,91 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-network-policy
+  namespace: productapp
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+      tier: backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Autoriser les requêtes depuis le frontend
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend
+          tier: frontend
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Autoriser les requêtes depuis l'ingress
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Autoriser les connexions vers PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Autoriser DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+  # Autoriser connexions externes (pour deps, etc.)
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-network-policy
+  namespace: productapp
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+      tier: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Autoriser toutes les requêtes entrantes (via ingress)
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 80
+  egress:
+  # Autoriser les connexions vers le backend
+  - to:
+    - podSelector:
+        matchLabels:
+          app: backend
+          tier: backend
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Autoriser DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53

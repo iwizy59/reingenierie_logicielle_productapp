@@ -43,13 +43,24 @@ public class Main {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         
-        // Créer l'application Javalin
+        // Créer l'application Javalin (Backend API uniquement - pas de fichiers statiques)
         Javalin app = Javalin.create(config -> {
             config.jsonMapper(new JavalinJackson(objectMapper));
-            config.staticFiles.add("/public", Location.CLASSPATH);
+            // Retirer le service de fichiers statiques pour architecture 3-tiers
+            // config.staticFiles.add("/public", Location.CLASSPATH);
+            
+            // Configuration CORS pour accepter les requêtes du frontend
             config.plugins.enableCors(cors -> {
                 cors.add(it -> {
-                    it.anyHost();
+                    // Autoriser les requêtes depuis le frontend nginx
+                    String allowedOrigins = System.getenv().getOrDefault("CORS_ALLOWED_ORIGINS", "*");
+                    if ("*".equals(allowedOrigins)) {
+                        it.anyHost();
+                    } else {
+                        for (String origin : allowedOrigins.split(",")) {
+                            it.allowHost(origin.trim());
+                        }
+                    }
                 });
             });
         }).start(port);

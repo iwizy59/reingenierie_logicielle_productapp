@@ -1,0 +1,22 @@
+# Dockerfile pour le Frontend (nginx)
+FROM nginx:1.25-alpine
+
+# Copier la configuration nginx personnalisée
+COPY nginx-frontend.conf /etc/nginx/conf.d/default.conf
+
+# Copier le fichier HTML statique
+COPY src/main/resources/public/index.html /usr/share/nginx/html/
+
+# Créer un utilisateur non-root pour la sécurité
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chmod -R 755 /usr/share/nginx/html
+
+# Exposer le port 80
+EXPOSE 80
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+
+# Démarrer nginx
+CMD ["nginx", "-g", "daemon off;"]
