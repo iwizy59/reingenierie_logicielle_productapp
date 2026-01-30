@@ -62,99 +62,68 @@ stop_port_forward() {
 delete_k8s_resources() {
     log_info "Suppression des ressources Kubernetes..."
     
-    # Supprimer l'ingress et networkpolicy
-    log_info "Suppression Ingress et NetworkPolicy..."
-    kubectl delete ingress --all -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete networkpolicy --all -n ${NAMESPACE} --ignore-not-found=true
-    
-    # Supprimer les deployments
-    log_info "Suppression Frontend et Backend..."
-    kubectl delete deployment frontend-deployment -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete deployment backend-deployment -n ${NAMESPACE} --ignore-not-found=true
-    
-    # Supprimer les services
-    kubectl delete service frontend-service -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete service backend-service -n ${NAMESPACE} --ignore-not-found=true
-    
-    # Supprimer HPA
-    kubectl delete hpa backend-hpa -n ${NAMESPACE} --ignore-not-found=true
-    
-    # Supprimer ConfigMaps
-    kubectl delete configmap backend-config -n ${NAMESPACE} --ignore-not-found=true
-    
-    # Supprimer PostgreSQL
-    log_info "Suppression PostgreSQL..."
-    kubectl delete statefulset postgres -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete service postgres-service -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete pvc postgres-pvc -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete configmap postgres-config -n ${NAMESPACE} --ignore-not-found=true
-    kubectl delete secret postgres-secret -n ${NAMESPACE} --ignore-not-found=true
-    
-    # Supprimer le namespace avec suppression forcée
-    log_info "Suppression du namespace productapp..."
+    # Supprimer tout le namespace d'un coup avec force
+    log_info "Suppression forcée du namespace productapp..."
     kubectl delete namespace ${NAMESPACE} --force --grace-period=0 2>&1 &
-    sleep 2
+    sleep 1
     kubectl get namespace ${NAMESPACE} -o json 2>/dev/null | jq -r '.spec.finalizers = []' | kubectl replace --raw /api/v1/namespaces/${NAMESPACE}/finalize -f - 2>/dev/null || true
     
-    # Vérifier que c'est vraiment supprimé
-    sleep 2
-    if kubectl get namespace ${NAMESPACE} > /dev/null 2>&1; then
-        log_error "Le namespace ${NAMESPACE} existe encore après suppression"
-    else
+    sleep 1
+    if ! kubectl get namespace ${NAMESPACE} > /dev/null 2>&1; then
         log_info "✓ Namespace ${NAMESPACE} complètement supprimé"
+    else
+        log_warn "Namespace ${NAMESPACE} en cours de suppression..."
     fi
 }
 
 # Suppression de Rancher
 delete_rancher() {
+    echo ""
+    log_info "Nettoyage de Rancher..."
+    
+    # 1. Toujours supprimer les webhooks et ClusterRoleBindings (même si le namespace n'existe pas)
+    kubectl delete validatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true 2>/dev/null &
+    kubectl delete mutatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true 2>/dev/null &
+    kubectl delete clusterrolebinding rancher --ignore-not-found=true 2>/dev/null &
+    
+    # 2. Supprimer tous les CRDs Rancher rapidement (sans attendre)
+    CRD_LIST=$(kubectl get crd -o name 2>/dev/null | grep cattle.io)
+    if [ -n "$CRD_LIST" ]; then
+        CRD_COUNT=$(echo "$CRD_LIST" | wc -l | tr -d ' ')
+        log_info "Suppression de ${CRD_COUNT} CRDs Rancher..."
+        # Boucle pour patcher et supprimer chaque CRD
+        echo "$CRD_LIST" | while read crd; do
+            (kubectl patch "$crd" -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null
+             kubectl delete "$crd" --force --grace-period=0 2>/dev/null) &
+        done
+    fi
+    
+    # 3. Suppression du namespace s'il existe
     if kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
-        echo ""
-        log_info "Suppression de Rancher..."
-        
-        # 1. Supprimer les webhooks EN PREMIER (c'est ça qui bloque)
-        log_info "Nettoyage des webhooks Rancher..."
-        kubectl delete validatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true 2>/dev/null || true
-        kubectl delete mutatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true 2>/dev/null || true
-        
-        # 2. Supprimer le ClusterRoleBinding
-        log_info "Suppression des ClusterRoleBindings..."
-        kubectl delete clusterrolebinding rancher --ignore-not-found=true 2>/dev/null || true
-        
-        # 3. Supprimer toutes les ressources API custom de Rancher
-        log_info "Nettoyage des CRDs Rancher..."
-        CRD_LIST=$(kubectl get crd -o name 2>/dev/null | grep cattle.io)
-        if [ -n "$CRD_LIST" ]; then
-            # Retirer les finalizers de tous les CRDs Rancher
-            for crd in $CRD_LIST; do
-                kubectl patch $crd -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-            done
-            # Supprimer les CRDs
-            echo "$CRD_LIST" | xargs -r kubectl delete --ignore-not-found=true 2>/dev/null || true
-            log_info "✓ CRDs Rancher supprimés"
-        fi
-        
-        # 4. Forcer la suppression des pods Rancher
-        log_info "Arrêt forcé des pods Rancher..."
-        kubectl delete pod --all -n ${RANCHER_NAMESPACE} --grace-period=0 --force --ignore-not-found=true 2>/dev/null || true
-        
-        # 5. Supprimer le PVC
-        log_info "Suppression du PVC Rancher..."
-        kubectl delete pvc rancher-data -n ${RANCHER_NAMESPACE} --ignore-not-found=true 2>/dev/null || true
-        
-        # 6. Suppression forcée du namespace avec finalize API
-        log_info "Suppression forcée du namespace cattle-system..."
         kubectl delete namespace ${RANCHER_NAMESPACE} --force --grace-period=0 2>&1 &
-        sleep 2
+        sleep 1
         kubectl get namespace ${RANCHER_NAMESPACE} -o json 2>/dev/null | jq -r '.spec.finalizers = []' | kubectl replace --raw /api/v1/namespaces/${RANCHER_NAMESPACE}/finalize -f - 2>/dev/null || true
         
-        # 7. Vérifier que c'est vraiment supprimé
-        sleep 2
+        # Attendre vraiment que le namespace soit supprimé (max 10 secondes)
+        for i in {1..10}; do
+            if ! kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
+                log_info "✓ Namespace ${RANCHER_NAMESPACE} complètement supprimé"
+                break
+            fi
+            sleep 1
+        done
+        
         if kubectl get namespace ${RANCHER_NAMESPACE} > /dev/null 2>&1; then
-            log_error "Impossible de supprimer complètement cattle-system"
-        else
-            log_info "✓ Rancher complètement supprimé"
+            log_warn "⚠️ Namespace ${RANCHER_NAMESPACE} toujours en cours de suppression"
         fi
     fi
+    
+    # 4. Vérifier et supprimer à nouveau les webhooks (au cas où ils se sont recréés)
+    sleep 1
+    kubectl delete validatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true 2>/dev/null || true
+    kubectl delete mutatingwebhookconfigurations rancher.cattle.io --ignore-not-found=true 2>/dev/null || true
+    
+    log_info "✓ Nettoyage Rancher terminé"
 }
 
 # Menu principal

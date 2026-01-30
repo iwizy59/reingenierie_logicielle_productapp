@@ -29,7 +29,7 @@ spec:
           protocol: TCP
         env:
         - name: CATTLE_BOOTSTRAP_PASSWORD
-          value: "admin"
+          value: "rancherpassword123"
         - name: CATTLE_SERVER_URL
           value: "https://rancher.localhost"
         volumeMounts:

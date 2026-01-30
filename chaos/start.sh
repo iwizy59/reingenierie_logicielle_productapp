@@ -8,6 +8,10 @@
 
 set -euo pipefail
 
+# Déterminer la racine du framework Chaos
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHAOS_ROOT="${SCRIPT_DIR}"
+
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
@@ -76,28 +80,29 @@ echo "  1) Kill un pod backend (60s)"
 echo "  2) Scale backend 2 → 1 → 2 (60s)"
 echo "  3) Exécuter TOUTES les expériences (suite complète)"
 echo "  4) Mode DRY-RUN (test sans vraiment casser)"
-echo "  5) Quitter"
+echo "  5) CHAOS EXTRÊME: Scale à 1 puis kill ce pod"
+echo "  6) Quitter"
 echo ""
-read -p "Votre choix [1-5]: " choice
+read -p "Votre choix [1-6]: " choice
 
 case $choice in
     1)
         echo ""
         echo -e "${YELLOW}Lancement: Kill Backend Pod${NC}"
         echo ""
-        ./experiments/kill-one-backend-pod.sh
+        "${CHAOS_ROOT}/experiments/kill-one-backend-pod.sh"
         ;;
     2)
         echo ""
         echo -e "${YELLOW}Lancement: Scale Backend Down/Up${NC}"
         echo ""
-        ./experiments/scale-backend-to-1-then-back.sh
+        "${CHAOS_ROOT}/experiments/scale-backend-to-1-then-back.sh"
         ;;
     3)
         echo ""
         echo -e "${YELLOW}Lancement: Suite Complète${NC}"
         echo ""
-        ./run-all.sh
+        "${CHAOS_ROOT}/run-all.sh"
         ;;
     4)
         echo ""
@@ -109,10 +114,10 @@ case $choice in
         read -p "Choix [1-2]: " dry_choice
         case $dry_choice in
             1)
-                DRY_RUN=true ./experiments/kill-one-backend-pod.sh
+                DRY_RUN=true "${CHAOS_ROOT}/experiments/kill-one-backend-pod.sh"
                 ;;
             2)
-                DRY_RUN=true ./experiments/scale-backend-to-1-then-back.sh
+                DRY_RUN=true "${CHAOS_ROOT}/experiments/scale-backend-to-1-then-back.sh"
                 ;;
             *)
                 echo "Choix invalide"
@@ -121,6 +126,12 @@ case $choice in
         esac
         ;;
     5)
+        echo ""
+        echo -e "${YELLOW}Lancement: CHAOS EXTRÊME - Scale puis Kill${NC}"
+        echo ""
+        "${CHAOS_ROOT}/experiments/scale-then-kill-last-pod.sh"
+        ;;
+    6)
         echo "Au revoir !"
         exit 0
         ;;

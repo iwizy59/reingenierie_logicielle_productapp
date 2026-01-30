@@ -449,7 +449,9 @@ cleanup() {
     log_info "Nettoyage en cours..."
     
     stop_traffic
-    stop_port_forward
+    
+    # Note: Ne pas arrêter le port-forward pour laisser l'accès à l'application
+    # stop_port_forward
     
     # Restore original replicas if needed
     if [[ -f "${PID_DIR}/chaos-original-replicas.txt" ]]; then
@@ -458,8 +460,8 @@ cleanup() {
         rm -f "${PID_DIR}/chaos-original-replicas.txt"
     fi
     
-    # Cleanup PID files
-    rm -f "${PID_DIR}"/chaos-*.pid
+    # Cleanup PID files (sauf port-forward)
+    rm -f "${PID_DIR}"/chaos-traffic*.pid
     rm -f "${PID_DIR}/chaos-traffic-log.txt"
     
     log_success "Nettoyage terminé"

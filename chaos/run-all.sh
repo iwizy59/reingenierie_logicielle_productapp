@@ -25,6 +25,7 @@ source "${SCRIPT_DIR}/lib/common.sh"
 EXPERIMENTS=(
     "experiments/kill-one-backend-pod.sh"
     "experiments/scale-backend-to-1-then-back.sh"
+    "experiments/scale-then-kill-last-pod.sh"
 )
 
 ###############################################################################

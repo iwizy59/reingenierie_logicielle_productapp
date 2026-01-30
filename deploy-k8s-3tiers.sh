@@ -125,6 +125,10 @@ deploy_rancher() {
     log_info "Création du namespace Rancher..."
     kubectl apply -f "$RANCHER_DIR/namespace.yaml"
     
+    # Créer le secret bootstrap
+    log_info "Création du secret bootstrap..."
+    kubectl apply -f "$RANCHER_DIR/bootstrap-secret.yaml"
+    
     # Déployer le ServiceAccount et ClusterRoleBinding
     log_info "Création du ServiceAccount et ClusterRoleBinding..."
     kubectl apply -f "$RANCHER_DIR/serviceaccount.yaml"
@@ -199,6 +203,44 @@ setup_rancher_port_forward() {
         log_info "   (Rancher sera accessible une fois le pod démarré)"
     else
         log_warn "⚠️  Port-forward Rancher non disponible pour le moment"
+    fi
+}
+
+# Initialiser le mot de passe Rancher
+init_rancher_password() {
+    if [ "$DEPLOY_RANCHER" != "true" ]; then
+        return
+    fi
+    
+    # Attendre que Rancher soit prêt
+    log_info "Attente du démarrage de Rancher..."
+    kubectl wait --for=condition=ready pod -l app=rancher -n ${RANCHER_NAMESPACE} --timeout=300s 2>/dev/null || {
+        log_warn "⚠️  Rancher prend plus de temps que prévu à démarrer"
+        return
+    }
+    
+    sleep 5  # Attendre que Rancher soit complètement initialisé
+    
+    log_info "Génération du mot de passe admin Rancher..."
+    
+    # Récupérer le nom du pod
+    RANCHER_POD=$(kubectl get pods -n ${RANCHER_NAMESPACE} -l app=rancher -o jsonpath='{.items[0].metadata.name}')
+    
+    # Réinitialiser le mot de passe admin (fonctionne que l'utilisateur existe ou non)
+    ADMIN_OUTPUT=$(kubectl exec -n ${RANCHER_NAMESPACE} ${RANCHER_POD} -- reset-password 2>&1)
+    
+    # Extraire le mot de passe de la sortie
+    ADMIN_PASSWORD=$(echo "$ADMIN_OUTPUT" | grep "New password for default admin" | tail -1 | awk '{print $NF}')
+    
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        log_success "✓ Utilisateur admin Rancher créé"
+        echo "$ADMIN_PASSWORD" > /tmp/rancher-admin-password.txt
+        log_info "📝 Mot de passe admin sauvegardé dans: /tmp/rancher-admin-password.txt"
+        echo ""
+        log_info "🔑 Mot de passe admin Rancher: ${GREEN}${ADMIN_PASSWORD}${NC}"
+        echo ""
+    else
+        log_warn "⚠️  Impossible de générer le mot de passe admin"
     fi
 }
 
@@ -316,8 +358,11 @@ show_info() {
     if [ "$DEPLOY_RANCHER" = "true" ] && kubectl get namespace "$RANCHER_NAMESPACE" &> /dev/null; then
         echo -e "${YELLOW}🎛️  Rancher (Gestion de cluster):${NC}"
         echo -e "   URL:      ${MAGENTA}https://localhost:${RANCHER_PORT}${NC}"
-        echo -e "   Username: ${YELLOW}admin${NC}"
-        echo -e "   Password: ${YELLOW}admin${NC} (à changer au premier login)"
+        echo ""
+        echo -e "   ${CYAN}📌 Première connexion:${NC}"
+        echo -e "      1. Ouvrez ${MAGENTA}https://localhost:${RANCHER_PORT}${NC}"
+        echo -e "      2. Le mot de passe bootstrap s'affichera automatiquement sur la page"
+        echo -e "      3. Copiez-le et configurez votre mot de passe admin"
         echo ""
         RANCHER_STATUS=$(kubectl get pods -n ${RANCHER_NAMESPACE} -l app=rancher -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Démarrage")
         echo -e "   Status:   ${CYAN}${RANCHER_STATUS}${NC}"
@@ -348,6 +393,7 @@ main() {
     check_deployment
     setup_port_forward
     setup_rancher_port_forward
+    init_rancher_password
     show_info
     
     echo ""
